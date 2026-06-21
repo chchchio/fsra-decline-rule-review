@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FSRA decline rule review</title>
+<style>
+  /* ---------- Design tokens ---------- */
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --border: #dfe2e8;
+    --border-strong: #c7ccd6;
+    --text: #1f2733;
+    --text-muted: #5c6675;
+    --text-faint: #8a93a3;
+    --accent: #1f4d7a;
+    --accent-hover: #18416a;
+
+    /* Band colors */
+    --approve: #2f8a4e;
+    --approve-bg: #e7f4ec;
+    --flag: #b9810c;
+    --flag-bg: #fbf2dd;
+    --refuse: #c0392b;
+    --refuse-bg: #fce9e7;
+    --insufficient: #2c6fb3;
+    --insufficient-bg: #e6f0fa;
+
+    --radius: 8px;
+    --shadow: 0 1px 2px rgba(20, 30, 45, 0.06), 0 1px 3px rgba(20, 30, 45, 0.04);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-weight: 600; color: var(--text); margin: 0; }
+  p { margin: 0; }
+
+  /* ---------- Layout ---------- */
+  .app-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .app-header-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    height: 60px;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .brand .mark {
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.2px;
+    color: var(--accent);
+  }
+  .brand .sub {
+    font-size: 13px;
+    color: var(--text-faint);
+  }
+
+  nav.top-nav {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+  nav.top-nav button {
+    background: none;
+    border: none;
+    font: inherit;
+    color: var(--text-muted);
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  nav.top-nav button:hover { background: var(--bg); color: var(--text); }
+  nav.top-nav button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    border-radius: 6px 6px 0 0;
+  }
+
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px;
+  }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ---------- Generic components ---------- */
+  .page-title {
+    margin-bottom: 4px;
+    font-size: 22px;
+  }
+  .page-subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .section-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-faint);
+    margin: 28px 0 12px;
+    font-weight: 600;
+  }
+
+  .btn {
+    font: inherit;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    padding: 8px 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { background: var(--bg); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn.small { padding: 5px 11px; font-size: 13px; }
+
+  /* ---------- Cards ---------- */
+  .card-row {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 8px;
+  }
+  .card-row.bands { grid-template-columns: repeat(4, 1fr); }
+  .card-row.statuses { grid-template-columns: repeat(5, 1fr); }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    border-left-width: 4px;
+    border-left-style: solid;
+    border-left-color: var(--border);
+  }
+  .stat-card .num {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  .stat-card .label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .stat-card.band-approve { border-left-color: var(--approve); }
+  .stat-card.band-flag { border-left-color: var(--flag); }
+  .stat-card.band-refuse { border-left-color: var(--refuse); }
+  .stat-card.band-insufficient { border-left-color: var(--insufficient); }
+
+  /* ---------- Band & status badges ---------- */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 100px;
+    white-space: nowrap;
+    line-height: 1.5;
+  }
+  .badge.approve { background: var(--approve-bg); color: var(--approve); }
+  .badge.flag { background: var(--flag-bg); color: var(--flag); }
+  .badge.refuse { background: var(--refuse-bg); color: var(--refuse); }
+  .badge.insufficient { background: var(--insufficient-bg); color: var(--insufficient); }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .status-pill::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--border-strong);
+  }
+  .status-pill.s-new::before { background: #8a93a3; }
+  .status-pill.s-ai::before { background: #2c6fb3; }
+  .status-pill.s-reviewing::before { background: #b9810c; }
+  .status-pill.s-signed::before { background: #2f8a4e; }
+  .status-pill.s-returned::before { background: #c0392b; }
+
+  /* ---------- Filter bar ---------- */
+  .filter-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .filter-bar label {
+    font-size: 12px;
+    color: var(--text-faint);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .filter-bar select,
+  .filter-bar input {
+    font: inherit;
+    font-size: 14px;
+    padding: 7px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    min-width: 160px;
+  }
+  .filter-bar .search { flex: 1; min-width: 220px; }
+  .filter-bar .field-grow { flex: 1; }
+
+  /* ---------- Table ---------- */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-faint);
+    font-weight: 600;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #fafbfc;
+  }
+  tbody td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #fafbfc; }
+  td.id { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 13.5px; }
+  td.rule { font-weight: 500; max-width: 360px; }
+  td.flags-count { text-align: center; font-variant-numeric: tabular-nums; }
+  .flags-count .pip {
+    display: inline-flex;
+    min-width: 22px;
+    justify-content: center;
+    padding: 1px 7px;
+    border-radius: 100px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  .flags-count .pip.has { background: var(--flag-bg); border-color: transparent; color: var(--flag); }
+
+  /* ---------- Detail view ---------- */
+  .detail-back {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .detail-back:hover { text-decoration: underline; }
+
+  .detail-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+    margin-bottom: 8px;
+  }
+  .detail-header .top-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .detail-header .sub-id {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .detail-header h1 {
+    font-size: 20px;
+    margin: 2px 0 0;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    align-items: start;
+    margin-top: 20px;
+  }
+  @media (max-width: 900px) {
+    .detail-grid { grid-template-columns: 1fr; }
+    .card-row.bands, .card-row.statuses { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel .panel-desc {
+    font-size: 12.5px;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .editable-tag {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--accent);
+    background: var(--insufficient-bg);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .placeholder-block {
+    background: var(--bg);
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    padding: 14px 16px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 14px;
+  }
+  .rule-text {
+    background: #fafbfc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+
+  ul.source-list { margin: 0; padding-left: 18px; }
+  ul.source-list li { margin-bottom: 6px; color: var(--text); }
+  ul.source-list li .cite { color: var(--text-faint); font-size: 12.5px; }
+
+  .flag-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .flag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    padding: 5px 11px;
+    border-radius: 100px;
+    border: 1px solid transparent;
+  }
+  .flag-chip.refuse { background: var(--refuse-bg); color: var(--refuse); }
+  .flag-chip.flag { background: var(--flag-bg); color: var(--flag); }
+  .flag-chip.insufficient { background: var(--insufficient-bg); color: var(--insufficient); }
+
+  .reco-band-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .action-list { display: flex; flex-direction: column; gap: 10px; }
+  .action-list .req-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .action-list .req-item .marker {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    margin-top: 1px;
+  }
+
+  /* Sidebar */
+  .side-panel h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .action-buttons { display: flex; flex-direction: column; gap: 8px; }
+  .action-buttons .btn { justify-content: flex-start; width: 100%; }
+  .export-row { display: flex; gap: 8px; }
+  .export-row .btn { flex: 1; justify-content: center; }
+
+  .log-list { display: flex; flex-direction: column; gap: 0; }
+  .log-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+  }
+  .log-item:last-child { border-bottom: none; }
+  .log-item .log-time {
+    flex: none;
+    width: 120px;
+    color: var(--text-faint);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .log-item .log-text { color: var(--text); }
+  .log-item .log-actor { color: var(--text-muted); }
+
+  .disclaimer {
+    margin-top: 28px;
+    padding: 12px 16px;
+    background: var(--insufficient-bg);
+    border: 1px solid #cfe0f1;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #29557e;
+  }
+  .divider { height: 1px; background: var(--border); margin: 18px 0; border: none; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <div class="brand">
+      <span class="mark">FSRA</span>
+      <span class="sub">Auto decline rule review</span>
+    </div>
+    <nav class="top-nav" id="topNav">
+      <button data-view="overview" class="active">Overview</button>
+      <button data-view="submissions">Submissions</button>
+      <button data-view="detail" id="navDetail" style="display:none;">Detail</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ VIEW 1: OVERVIEW ============ -->
+  <section class="view active" id="view-overview">
+    <h1 class="page-title">Regulatory review queue</h1>
+    <p class="page-subtitle">AI-assisted triage of insurer decline-rule submissions. A human analyst makes every final decision.</p>
+
+    <div class="section-label">Recommendation bands</div>
+    <div class="card-row bands">
+      <div class="stat-card band-approve">
+        <div class="num">5</div>
+        <div class="label">Approve</div>
+      </div>
+      <div class="stat-card band-flag">
+        <div class="num">7</div>
+        <div class="label">Flag for review</div>
+      </div>
+      <div class="stat-card band-refuse">
+        <div class="num">3</div>
+        <div class="label">Refuse</div>
+      </div>
+      <div class="stat-card band-insufficient">
+        <div class="num">2</div>
+        <div class="label">Insufficient basis</div>
+      </div>
+    </div>
+
+    <div class="section-label">Workflow status</div>
+    <div class="card-row statuses">
+      <div class="stat-card">
+        <div class="num">4</div>
+        <div class="label">New</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">6</div>
+        <div class="label">AI reviewed</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">3</div>
+        <div class="label">Analyst reviewing</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">3</div>
+        <div class="label">Signed off</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">1</div>
+        <div class="label">Returned</div>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;">
+      <button class="btn primary" onclick="alert('Placeholder — new submission intake will be wired up later.')">+ New submission</button>
+    </div>
+
+    <div class="disclaimer">
+      This is a decision-support prototype. AI output is a draft for analyst review only and is not a regulatory decision.
+    </div>
+  </section>
+
+  <!-- ============ VIEW 2: SUBMISSIONS ============ -->
+  <section class="view" id="view-submissions">
+    <h1 class="page-title">Submissions</h1>
+    <p class="page-subtitle">All insurer decline-rule submissions in the review queue.</p>
+
+    <div class="filter-bar">
+      <div>
+        <label for="fBand">Band</label>
+        <select id="fBand" disabled>
+          <option>All bands</option>
+          <option>Approve</option>
+          <option>Flag for review</option>
+          <option>Refuse</option>
+          <option>Insufficient basis</option>
+        </select>
+      </div>
+      <div>
+        <label for="fStatus">Status</label>
+        <select id="fStatus" disabled>
+          <option>All statuses</option>
+          <option>New</option>
+          <option>AI reviewed</option>
+          <option>Analyst reviewing</option>
+          <option>Signed off</option>
+          <option>Returned</option>
+        </select>
+      </div>
+      <div class="field-grow">
+        <label for="fSearch">Search</label>
+        <input class="search" id="fSearch" type="search" placeholder="Search by ID or rule title…" disabled>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Rule</th>
+            <th>Band</th>
+            <th>Status</th>
+            <th>Flags</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="subTableBody"><!-- rows injected by JS --></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 3: DETAIL ============ -->
+  <section class="view" id="view-detail">
+    <button class="detail-back" onclick="showView('submissions')">← Back to submissions</button>
+
+    <div class="detail-header">
+      <div class="top-line">
+        <span class="sub-id" id="dId">SUB-0000</span>
+        <span class="badge" id="dBand">Band</span>
+        <span class="status-pill" id="dStatus">Status</span>
+      </div>
+      <h1 id="dTitle">Rule title</h1>
+    </div>
+
+    <div class="detail-grid">
+      <!-- Main column -->
+      <div>
+        <div class="panel">
+          <h2>Submission</h2>
+          <p class="panel-desc">The decline rule as submitted by the insurer.</p>
+          <div class="rule-text" id="dRuleText">Rule text placeholder.</div>
+        </div>
+
+        <div class="panel">
+          <h2>AI summary <span class="editable-tag">Editable</span></h2>
+          <p class="panel-desc">Plain-language summary generated by the assistant. Analyst may edit before sign-off.</p>
+          <div class="placeholder-block">
+            [ Placeholder ] AI-generated summary of the submitted rule will appear here, including its scope, the circumstances under which the insurer proposes to decline coverage, and any conditions attached.
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Precedent comparison</h2>
+          <p class="panel-desc">Sources the assistant compared this submission against.</p>
+          <ul class="source-list">
+            <li>Insurance Act, R.S.O. 1990, c. I.8 <span class="cite">— [ placeholder citation ]</span></li>
+            <li>Automobile Insurance Rate Stabilization framework <span class="cite">— [ placeholder citation ]</span></li>
+            <li>FSRA guidance on unfair or deceptive acts <span class="cite">— [ placeholder citation ]</span></li>
+            <li>Prior decision: SUB-0142 underwriting decline <span class="cite">— [ placeholder citation ]</span></li>
+          </ul>
+        </div>
+
+        <div class="panel">
+          <h2>Flags</h2>
+          <p class="panel-desc">Issues raised by the assistant for analyst attention.</p>
+          <div class="flag-chips" id="dFlags">
+            <span class="flag-chip refuse">● Placeholder flag</span>
+            <span class="flag-chip flag">● Placeholder flag</span>
+            <span class="flag-chip insufficient">● Placeholder flag</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Recommendation</h2>
+          <p class="panel-desc">Suggested band with supporting reasoning. Never a bare verdict — always a rationale for the analyst to weigh.</p>
+          <div class="reco-band-line">
+            <span style="font-size:13px;color:var(--text-faint);">Suggested band</span>
+            <span class="badge" id="dRecoBand">Band</span>
+          </div>
+          <div class="placeholder-block">
+            [ Placeholder ] Rationale supporting the recommended band will appear here — the reasoning, the precedents relied on, and the factors weighed. This area is always present so that no recommendation is reduced to a single word.
+          </div>
+        </div>
+
+        <div class="panel" id="requiredActionsPanel">
+          <h2>Required actions before resubmission</h2>
+          <p class="panel-desc">Steps the insurer must address. Shown for Refuse, Flag, and Insufficient basis bands.</p>
+          <div class="action-list">
+            <div class="req-item"><span class="marker"></span><span class="placeholder">[ Placeholder ] Required action the insurer must address before resubmitting.</span></div>
+            <div class="req-item"><span class="marker"></span><span class="placeholder">[ Placeholder ] Required action the insurer must address before resubmitting.</span></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Draft response to insurer <span class="editable-tag">Editable</span></h2>
+          <p class="panel-desc">Draft correspondence generated for the analyst to review, edit, and send.</p>
+          <div class="placeholder-block">
+            [ Placeholder ] A draft letter to the insurer will be generated here, stating the outcome of the review, the reasoning, and any required next steps. The analyst edits and approves before anything is sent.
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside>
+        <div class="panel side-panel">
+          <h3>Analyst actions</h3>
+          <div class="action-buttons">
+            <button class="btn" onclick="noop()">Edit summary</button>
+            <button class="btn" onclick="noop()">Override band</button>
+            <button class="btn" onclick="noop()">Add notes</button>
+            <button class="btn" onclick="noop()">Record decision</button>
+            <button class="btn" onclick="noop()">Edit draft response</button>
+            <button class="btn" onclick="noop()">Advance</button>
+          </div>
+        </div>
+
+        <div class="panel side-panel">
+          <h3>Export</h3>
+          <div class="export-row">
+            <button class="btn primary" onclick="noop()">Export to Word</button>
+            <button class="btn" onclick="noop()">Export PDF</button>
+          </div>
+        </div>
+
+        <div class="panel side-panel">
+          <h3>Action log</h3>
+          <div class="log-list">
+            <div class="log-item">
+              <span class="log-time">[ timestamp ]</span>
+              <span><span class="log-text">Placeholder — analyst actions will be recorded here with timestamps.</span> <span class="log-actor">— analyst</span></span>
+            </div>
+            <div class="log-item">
+              <span class="log-time">[ timestamp ]</span>
+              <span><span class="log-text">Placeholder — submission received and queued.</span> <span class="log-actor">— system</span></span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  /* ---------- Seed data (placeholder only) ---------- */
+  // band: approve | flag | refuse | insufficient
+  // status: new | ai | reviewing | signed | returned
+  const BANDS = {
+    approve:      { label: "Approve",            cls: "approve" },
+    flag:         { label: "Flag for review",    cls: "flag" },
+    refuse:       { label: "Refuse",             cls: "refuse" },
+    insufficient: { label: "Insufficient basis", cls: "insufficient" }
+  };
+  const STATUSES = {
+    new:       { label: "New",                cls: "s-new" },
+    ai:        { label: "AI reviewed",        cls: "s-ai" },
+    reviewing: { label: "Analyst reviewing",  cls: "s-reviewing" },
+    signed:    { label: "Signed off",         cls: "s-signed" },
+    returned:  { label: "Returned",           cls: "s-returned" }
+  };
+
+  const submissions = [
+    { id: "SUB-0231", rule: "Decline new policies for drivers with a lapse in prior coverage over 90 days", band: "flag",         status: "reviewing", flags: 2, ruleText: "[ Placeholder ] The insurer proposes to decline new auto policies where the applicant has had a gap in continuous insurance coverage exceeding 90 days in the preceding 24 months." },
+    { id: "SUB-0228", rule: "Refuse coverage where vehicle is registered outside Ontario",                  band: "refuse",       status: "ai",        flags: 3, ruleText: "[ Placeholder ] Decline rule text for out-of-province vehicle registration." },
+    { id: "SUB-0225", rule: "Decline applicants under a graduated licence after two at-fault claims",       band: "approve",      status: "signed",    flags: 0, ruleText: "[ Placeholder ] Decline rule text for graduated licence and at-fault claim history." },
+    { id: "SUB-0223", rule: "Refuse renewal for non-payment after two reinstatements in a year",            band: "flag",         status: "new",       flags: 1, ruleText: "[ Placeholder ] Decline rule text for repeated reinstatement after non-payment." },
+    { id: "SUB-0219", rule: "Decline based on credit-related underwriting score",                           band: "refuse",       status: "returned",  flags: 4, ruleText: "[ Placeholder ] Decline rule text referencing a credit-related underwriting score." },
+    { id: "SUB-0216", rule: "Decline rideshare-use vehicles without an endorsement",                        band: "approve",      status: "signed",    flags: 0, ruleText: "[ Placeholder ] Decline rule text for rideshare use absent the appropriate endorsement." },
+    { id: "SUB-0212", rule: "Refuse coverage for applicants with no fixed address",                         band: "insufficient", status: "ai",        flags: 2, ruleText: "[ Placeholder ] Decline rule text concerning applicants without a fixed address." },
+    { id: "SUB-0208", rule: "Decline high-performance vehicles above a horsepower threshold",               band: "insufficient", status: "reviewing", flags: 1, ruleText: "[ Placeholder ] Decline rule text for vehicles exceeding a stated horsepower threshold." }
+  ];
+
+  /* ---------- Render submissions table ---------- */
+  function renderTable() {
+    const tbody = document.getElementById("subTableBody");
+    tbody.innerHTML = submissions.map(s => {
+      const b = BANDS[s.band], st = STATUSES[s.status];
+      return `
+        <tr>
+          <td class="id">${s.id}</td>
+          <td class="rule">${s.rule}</td>
+          <td><span class="badge ${b.cls}">${b.label}</span></td>
+          <td><span class="status-pill ${st.cls}">${st.label}</span></td>
+          <td class="flags-count"><span class="pip ${s.flags > 0 ? 'has' : ''}">${s.flags}</span></td>
+          <td><button class="btn small" onclick="openDetail('${s.id}')">Open</button></td>
+        </tr>`;
+    }).join("");
+  }
+
+  /* ---------- View switching ---------- */
+  function showView(name) {
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    document.getElementById("view-" + name).classList.add("active");
+    document.querySelectorAll("#topNav button").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.view === name);
+    });
+    document.getElementById("navDetail").style.display = (name === "detail") ? "" : "none";
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll("#topNav button").forEach(btn => {
+    btn.addEventListener("click", () => showView(btn.dataset.view));
+  });
+
+  /* ---------- Open detail ---------- */
+  function openDetail(id) {
+    const s = submissions.find(x => x.id === id);
+    if (!s) return;
+    const b = BANDS[s.band], st = STATUSES[s.status];
+
+    document.getElementById("dId").textContent = s.id;
+    document.getElementById("dTitle").textContent = s.rule;
+    document.getElementById("dRuleText").textContent = s.ruleText;
+
+    const bandEl = document.getElementById("dBand");
+    bandEl.textContent = b.label;
+    bandEl.className = "badge " + b.cls;
+
+    const recoEl = document.getElementById("dRecoBand");
+    recoEl.textContent = b.label;
+    recoEl.className = "badge " + b.cls;
+
+    const statusEl = document.getElementById("dStatus");
+    statusEl.textContent = st.label;
+    statusEl.className = "status-pill " + st.cls;
+
+    // Required-actions panel: hidden when band is Approve
+    document.getElementById("requiredActionsPanel").style.display =
+      (s.band === "approve") ? "none" : "";
+
+    showView("detail");
+  }
+
+  function noop() {
+    alert("Placeholder — this action is not wired up yet.");
+  }
+
+  /* ---------- Init ---------- */
+  renderTable();
+</script>
+</body>
+</html>
