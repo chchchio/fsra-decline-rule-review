@@ -683,7 +683,7 @@
     <div class="filter-bar">
       <div>
         <label for="fBand">Band</label>
-        <select id="fBand" disabled>
+        <select id="fBand">
           <option>All bands</option>
           <option>Approve</option>
           <option>Flag for review</option>
@@ -693,7 +693,7 @@
       </div>
       <div>
         <label for="fStatus">Status</label>
-        <select id="fStatus" disabled>
+        <select id="fStatus">
           <option>All statuses</option>
           <option>New</option>
           <option>AI reviewed</option>
@@ -704,7 +704,7 @@
       </div>
       <div class="field-grow">
         <label for="fSearch">Search</label>
-        <input class="search" id="fSearch" type="search" placeholder="Search by ID or rule title…" disabled>
+        <input class="search" id="fSearch" type="search" placeholder="Search by ID or rule title…">
       </div>
     </div>
 
@@ -865,30 +865,91 @@
     returned:  { label: "Returned",           cls: "s-returned" }
   };
 
-  const submissions = [
-    { id: "SUB-0231", rule: "Decline new policies for drivers with a lapse in prior coverage over 90 days", band: "flag",         status: "reviewing", flags: 2, ruleText: "[ Placeholder ] The insurer proposes to decline new auto policies where the applicant has had a gap in continuous insurance coverage exceeding 90 days in the preceding 24 months." },
-    { id: "SUB-0228", rule: "Refuse coverage where vehicle is registered outside Ontario",                  band: "refuse",       status: "ai",        flags: 3, ruleText: "[ Placeholder ] Decline rule text for out-of-province vehicle registration." },
-    { id: "SUB-0225", rule: "Decline applicants under a graduated licence after two at-fault claims",       band: "approve",      status: "signed",    flags: 0, ruleText: "[ Placeholder ] Decline rule text for graduated licence and at-fault claim history." },
-    { id: "SUB-0223", rule: "Refuse renewal for non-payment after two reinstatements in a year",            band: "flag",         status: "new",       flags: 1, ruleText: "[ Placeholder ] Decline rule text for repeated reinstatement after non-payment." },
-    { id: "SUB-0219", rule: "Decline based on credit-related underwriting score",                           band: "refuse",       status: "returned",  flags: 4, ruleText: "[ Placeholder ] Decline rule text referencing a credit-related underwriting score." },
-    { id: "SUB-0216", rule: "Decline rideshare-use vehicles without an endorsement",                        band: "approve",      status: "signed",    flags: 0, ruleText: "[ Placeholder ] Decline rule text for rideshare use absent the appropriate endorsement." },
-    { id: "SUB-0212", rule: "Refuse coverage for applicants with no fixed address",                         band: "insufficient", status: "ai",        flags: 2, ruleText: "[ Placeholder ] Decline rule text concerning applicants without a fixed address." },
-    { id: "SUB-0208", rule: "Decline high-performance vehicles above a horsepower threshold",               band: "insufficient", status: "reviewing", flags: 1, ruleText: "[ Placeholder ] Decline rule text for vehicles exceeding a stated horsepower threshold." }
-  ];
+  // In-memory only — loaded at runtime from the knowledge-base JSON. No browser storage.
+  let submissions = [];
+  let loadError = false;
+
+  const DATA_URL = "./decline_rule_knowledge_base_34_FINAL.json";
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  /* ---------- Field mapping (uses the JSON's own keys) ----------
+     id     -> source `id`        (e.g. "item-01")
+     rule   -> source `title`
+     submission text -> source `source_text`
+     band / workflow status / flag count: not present in the data yet
+       (assigned in a later build step) -> render a neutral "—" placeholder.
+       Note: the JSON `status` field is a source legal status (in_force, etc.),
+       which is NOT a review workflow status, so it does not populate the
+       Status column. */
+  function bandKey(s)   { return s && s.band && BANDS[s.band] ? s.band : null; }
+  function statusKey(s) { return s && s.status && STATUSES[s.status] ? s.status : null; }
+
+  /* ---------- Load data ---------- */
+  function loadData() {
+    fetch(DATA_URL)
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(data => {
+        const list = data && Array.isArray(data.sources) ? data.sources : [];
+        if (list.length === 0) throw new Error("empty");
+        submissions = list;
+        loadError = false;
+        renderTable();
+      })
+      .catch(() => { loadError = true; renderTable(); });
+  }
 
   /* ---------- Render submissions table ---------- */
   function renderTable() {
     const tbody = document.getElementById("subTableBody");
-    tbody.innerHTML = submissions.map(s => {
-      const b = BANDS[s.band], st = STATUSES[s.status];
+
+    if (loadError) {
+      tbody.innerHTML = `<tr><td colspan="6">Unable to load submissions</td></tr>`;
+      return;
+    }
+
+    const fBand = document.getElementById("fBand").value;
+    const fStatus = document.getElementById("fStatus").value;
+    const q = document.getElementById("fSearch").value.trim().toLowerCase();
+
+    const rows = submissions.filter(s => {
+      const bk = bandKey(s), sk = statusKey(s);
+      const bandLabel = bk ? BANDS[bk].label : null;
+      const statusLabel = sk ? STATUSES[sk].label : null;
+      if (fBand !== "All bands" && bandLabel !== fBand) return false;
+      if (fStatus !== "All statuses" && statusLabel !== fStatus) return false;
+      if (q) {
+        const hay = ((s.id || "") + " " + (s.title || "")).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    if (rows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6">No submissions match the current filters.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map(s => {
+      const bk = bandKey(s), sk = statusKey(s);
+      const bandCell = bk
+        ? `<span class="badge ${BANDS[bk].cls}">${BANDS[bk].label}</span>` : "—";
+      const statusCell = sk
+        ? `<span class="status-pill ${STATUSES[sk].cls}">${STATUSES[sk].label}</span>` : "—";
+      const flagsCell = (typeof s.flags === "number")
+        ? `<span class="pip ${s.flags > 0 ? "has" : ""}">${s.flags}</span>`
+        : `<span class="pip">—</span>`;
       return `
         <tr>
-          <td class="id">${s.id}</td>
-          <td class="rule">${s.rule}</td>
-          <td><span class="badge ${b.cls}">${b.label}</span></td>
-          <td><span class="status-pill ${st.cls}">${st.label}</span></td>
-          <td class="flags-count"><span class="pip ${s.flags > 0 ? 'has' : ''}">${s.flags}</span></td>
-          <td><button class="btn small" onclick="openDetail('${s.id}')">Open</button></td>
+          <td class="id">${escapeHtml(s.id)}</td>
+          <td class="rule">${escapeHtml(s.title)}</td>
+          <td>${bandCell}</td>
+          <td>${statusCell}</td>
+          <td class="flags-count">${flagsCell}</td>
+          <td><button class="btn small" data-open="${escapeHtml(s.id)}">Open</button></td>
         </tr>`;
     }).join("");
   }
@@ -912,27 +973,29 @@
   function openDetail(id) {
     const s = submissions.find(x => x.id === id);
     if (!s) return;
-    const b = BANDS[s.band], st = STATUSES[s.status];
+    const bk = bandKey(s), sk = statusKey(s);
 
+    // Real data: ID, title, submission text.
     document.getElementById("dId").textContent = s.id;
-    document.getElementById("dTitle").textContent = s.rule;
-    document.getElementById("dRuleText").textContent = s.ruleText;
+    document.getElementById("dTitle").textContent = s.title;
+    document.getElementById("dRuleText").textContent = s.source_text || "—";
 
+    // Band / status not assigned yet -> neutral placeholder.
     const bandEl = document.getElementById("dBand");
-    bandEl.textContent = b.label;
-    bandEl.className = "badge " + b.cls;
+    if (bk) { bandEl.textContent = BANDS[bk].label; bandEl.className = "badge " + BANDS[bk].cls; }
+    else { bandEl.textContent = "—"; bandEl.className = "badge"; }
 
     const recoEl = document.getElementById("dRecoBand");
-    recoEl.textContent = b.label;
-    recoEl.className = "badge " + b.cls;
+    if (bk) { recoEl.textContent = BANDS[bk].label; recoEl.className = "badge " + BANDS[bk].cls; }
+    else { recoEl.textContent = "—"; recoEl.className = "badge"; }
 
     const statusEl = document.getElementById("dStatus");
-    statusEl.textContent = st.label;
-    statusEl.className = "status-pill " + st.cls;
+    if (sk) { statusEl.textContent = STATUSES[sk].label; statusEl.className = "status-pill " + STATUSES[sk].cls; }
+    else { statusEl.textContent = "—"; statusEl.className = "status-pill"; }
 
     // Required-actions panel: hidden when band is Approve
     document.getElementById("requiredActionsPanel").style.display =
-      (s.band === "approve") ? "none" : "";
+      (bk === "approve") ? "none" : "";
 
     showView("detail");
   }
@@ -941,8 +1004,17 @@
     alert("Placeholder — this action is not wired up yet.");
   }
 
+  /* ---------- Filters & row actions ---------- */
+  document.getElementById("fBand").addEventListener("change", renderTable);
+  document.getElementById("fStatus").addEventListener("change", renderTable);
+  document.getElementById("fSearch").addEventListener("input", renderTable);
+  document.getElementById("subTableBody").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-open]");
+    if (btn) openDetail(btn.getAttribute("data-open"));
+  });
+
   /* ---------- Init ---------- */
-  renderTable();
+  loadData();
 </script>
 </body>
 </html>
