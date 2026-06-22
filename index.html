@@ -481,16 +481,6 @@
     color: var(--text-secondary);
     font-style: italic;
   }
-  .placeholder-block {
-    background: var(--background-wash);
-    border: 1px dashed var(--mountain-wash);
-    border-radius: var(--radius-button);
-    padding: 15px 17px;
-    color: var(--text-secondary);
-    font-style: italic;
-    font-size: 14px;
-    line-height: 1.6;
-  }
   .rule-text {
     background: var(--background-wash);
     border: 1px solid var(--border-light);
@@ -596,6 +586,29 @@
     background: linear-gradient(90deg, transparent, var(--border-light), transparent);
     margin: 22px 0;
     border: none;
+  }
+
+  /* Mobile (narrow-width) adjustments only — desktop layout above 600px is unchanged. */
+  @media (max-width: 600px) {
+    /* Header: shrink the title and let the bar wrap so nothing overflows. */
+    .app-header { padding: 0 16px; }
+    .app-header-inner {
+      height: auto;
+      min-height: 56px;
+      gap: 10px 16px;
+      flex-wrap: wrap;
+      padding: 10px 0;
+    }
+    .brand .mark { font-size: 15px; }
+    .brand .sub { font-size: 11.5px; }
+    nav.top-nav button { padding: 0 12px; }
+
+    /* Reduce content padding so cards and panels fit the viewport width. */
+    main { padding: 20px 16px 36px; }
+
+    /* Submissions table: scroll horizontally so Status and Open stay reachable. */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .table-wrap table { min-width: 720px; }
   }
 
   /* Print view for the Notice of Decision (Export PDF).
