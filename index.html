@@ -731,7 +731,6 @@
             <th>Rule</th>
             <th>Assessment</th>
             <th>Status</th>
-            <th>Flags</th>
             <th></th>
           </tr>
         </thead>
@@ -960,7 +959,7 @@
     const tbody = document.getElementById("subTableBody");
 
     if (loadError) {
-      tbody.innerHTML = `<tr><td colspan="6">Unable to load submissions</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5">Unable to load submissions</td></tr>`;
       return;
     }
 
@@ -979,7 +978,7 @@
     });
 
     if (rows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6">No submissions match the current filters.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5">No submissions match the current filters.</td></tr>`;
       return;
     }
 
@@ -990,15 +989,12 @@
         ? `<span class="badge ${aCls}">${escapeHtml(s.assessment)}</span>` : "—";
       const statusCell = s.status
         ? `<span class="status-pill ${sCls}">${escapeHtml(s.status)}</span>` : "—";
-      const flags = Array.isArray(s.citations) ? s.citations.length : 0;
-      const flagsCell = `<span class="pip ${flags > 0 ? "has" : ""}">${flags}</span>`;
       return `
         <tr>
           <td class="id">${escapeHtml(s.id)}</td>
           <td class="rule">${escapeHtml(s.rule_text)}</td>
           <td>${bandCell}</td>
           <td>${statusCell}</td>
-          <td class="flags-count">${flagsCell}</td>
           <td><button class="btn small" data-open="${escapeHtml(s.id)}">Open</button></td>
         </tr>`;
     }).join("");
