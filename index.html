@@ -597,6 +597,15 @@
     margin: 22px 0;
     border: none;
   }
+
+  /* Print view for the Decision Document (Export PDF) */
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; }
+    #printArea h1 { font-size: 18px; margin: 0 0 12px; }
+    #printArea h2 { font-size: 14px; margin: 18px 0 6px; }
+    #printArea p, #printArea li { font-size: 12px; line-height: 1.5; }
+  }
 </style>
 </head>
 <body>
@@ -731,6 +740,17 @@
         <span class="status-pill" id="dStatus">Status</span>
       </div>
       <p class="panel-desc" id="dMeta" style="margin-top:10px;margin-bottom:0;"></p>
+      <div id="statusEditor" style="display:none;margin-top:14px;">
+        <span class="panel-desc" style="margin-right:8px;">Set status</span>
+        <select id="editStatus" style="font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--border-light);border-radius:var(--radius-button);background:var(--surface-white);color:var(--text-primary);">
+          <option>AI reviewed</option>
+          <option>Analyst reviewing</option>
+          <option>Signed off</option>
+          <option>Returned</option>
+        </select>
+        <button class="btn primary small" id="saveStatusBtn" style="margin-left:8px;">Update status</button>
+        <button class="btn small" id="cancelStatusBtn">Cancel</button>
+      </div>
     </div>
 
     <div class="detail-grid">
@@ -757,19 +777,63 @@
         </div>
 
         <div class="panel">
-          <h2>Recommendation</h2>
-          <p class="panel-desc">The recommended assessment with supporting reasoning for the analyst to weigh.</p>
+          <h2>Assessment</h2>
+          <p class="panel-desc">The tool's recommendation (read-only record) and the analyst's recorded decision.</p>
+
+          <p class="panel-desc" style="margin-top:4px;margin-bottom:8px;">AI recommendation</p>
           <div class="reco-band-line">
-            <span style="font-size:13px;color:var(--text-secondary);">Assessment</span>
             <span class="badge" id="dRecoBand">Band</span>
           </div>
-          <div class="rule-text" id="dRecommendation" style="margin-top:14px;"></div>
+          <div class="rule-text" id="dRecommendation" style="margin-top:10px;"></div>
+
+          <div id="dDecisionWrap" style="display:none;margin-top:18px;">
+            <p class="panel-desc" style="margin-bottom:8px;">Analyst decision</p>
+            <div class="reco-band-line">
+              <span class="badge" id="dDecisionBand">Band</span>
+            </div>
+            <div class="rule-text" id="dDecisionText" style="margin-top:10px;white-space:pre-wrap;"></div>
+          </div>
+
+          <div id="assessmentEditor" style="display:none;margin-top:18px;">
+            <p class="panel-desc" style="margin-bottom:8px;">Record / override assessment</p>
+            <select id="editAssessment" style="font:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--border-light);border-radius:var(--radius-button);background:var(--surface-white);color:var(--text-primary);">
+              <option>Approve</option>
+              <option>Flag for Review</option>
+              <option>Refuse</option>
+              <option>No Recommendation</option>
+            </select>
+            <textarea id="editRationale" style="display:block;margin-top:10px;width:100%;box-sizing:border-box;min-height:140px;font:inherit;font-size:14px;line-height:1.6;padding:12px 14px;border:1px solid var(--border-light);border-radius:var(--radius-button);background:var(--surface-white);color:var(--text-primary);resize:vertical;"></textarea>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button class="btn primary" id="saveAssessmentBtn">Save decision</button>
+              <button class="btn" id="cancelAssessmentBtn">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Analyst notes</h2>
+          <p class="panel-desc">Internal notes for the review file. Not part of the insurer letter.</p>
+          <div class="rule-text" id="dNotes" style="white-space:pre-wrap;">—</div>
+          <div id="notesEditor" style="display:none;margin-top:12px;">
+            <textarea id="editNotes" placeholder="Add an internal note…" style="display:block;width:100%;box-sizing:border-box;min-height:100px;font:inherit;font-size:14px;line-height:1.6;padding:12px 14px;border:1px solid var(--border-light);border-radius:var(--radius-button);background:var(--surface-white);color:var(--text-primary);resize:vertical;"></textarea>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button class="btn primary" id="saveNotesBtn">Save note</button>
+              <button class="btn" id="cancelNotesBtn">Cancel</button>
+            </div>
+          </div>
         </div>
 
         <div class="panel">
           <h2>Draft response to insurer <span class="editable-tag">Draft</span></h2>
-          <p class="panel-desc">Draft correspondence for analyst review. Read-only in this view.</p>
+          <p class="panel-desc">Draft cover letter to the insurer. Edit via the Analyst actions rail.</p>
           <div class="rule-text" id="dDraftResponse" style="white-space:pre-wrap;"></div>
+          <div id="draftEditor" style="display:none;margin-top:12px;">
+            <textarea id="editDraft" style="display:block;width:100%;box-sizing:border-box;min-height:220px;font:inherit;font-size:14px;line-height:1.6;padding:12px 14px;border:1px solid var(--border-light);border-radius:var(--radius-button);background:var(--surface-white);color:var(--text-primary);resize:vertical;"></textarea>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button class="btn primary" id="saveDraftBtn">Save draft</button>
+              <button class="btn" id="cancelDraftBtn">Cancel</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -777,42 +841,37 @@
       <aside>
         <div class="panel side-panel">
           <h3>Analyst actions</h3>
-          <div class="action-buttons">
-            <button class="btn" onclick="noop()">Edit summary</button>
-            <button class="btn" onclick="noop()">Override band</button>
-            <button class="btn" onclick="noop()">Add notes</button>
-            <button class="btn" onclick="noop()">Record decision</button>
-            <button class="btn" onclick="noop()">Edit draft response</button>
-            <button class="btn" onclick="noop()">Advance</button>
+          <label for="analystName" style="display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted-slate);margin-bottom:6px;font-weight:600;">Analyst</label>
+          <input id="analystName" type="text" value="Analyst" style="width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--border-light);border-radius:var(--radius-button);background:var(--surface-white);color:var(--text-primary);">
+          <div class="action-buttons" style="margin-top:14px;">
+            <button class="btn primary" id="actRecord">Record decision</button>
+            <button class="btn" id="actOverride">Override assessment</button>
+            <button class="btn" id="actNotes">Add notes</button>
+            <button class="btn" id="actDraft">Edit draft response</button>
+            <button class="btn" id="actAdvance">Advance</button>
           </div>
         </div>
 
         <div class="panel side-panel">
           <h3>Export</h3>
           <div class="export-row">
-            <button class="btn primary" onclick="noop()">Export to Word</button>
-            <button class="btn" onclick="noop()">Export PDF</button>
+            <button class="btn primary" id="actExportWord">Export to Word</button>
+            <button class="btn" id="actExportPdf">Export PDF</button>
           </div>
         </div>
 
         <div class="panel side-panel">
           <h3>Action log</h3>
-          <div class="log-list">
-            <div class="log-item">
-              <span class="log-time">[ timestamp ]</span>
-              <span><span class="log-text">Placeholder — analyst actions will be recorded here with timestamps.</span> <span class="log-actor">— analyst</span></span>
-            </div>
-            <div class="log-item">
-              <span class="log-time">[ timestamp ]</span>
-              <span><span class="log-text">Placeholder — submission received and queued.</span> <span class="log-actor">— system</span></span>
-            </div>
-          </div>
+          <div class="log-list" id="dLog"></div>
         </div>
       </aside>
     </div>
   </section>
 
 </main>
+
+<!-- Print-only container for Export PDF (populated at print time) -->
+<div id="printArea" style="display:none;"></div>
 
 <script>
   /* ---------- Assessment / status -> pill styling ----------
@@ -948,14 +1007,53 @@
     btn.addEventListener("click", () => showView(btn.dataset.view));
   });
 
-  /* ---------- Open detail ---------- */
+  /* ---------- Analyst review state (in-memory only) ----------
+     AI fields on each submission (assessment, recommendation, draft_response)
+     are NEVER mutated — they are the fixed record of what the tool advised.
+     Analyst actions accumulate in s._review. Workflow `status` is a mutable
+     workflow field and may change via Advance. */
+  let currentId = null;
+  let assessmentMode = "record";
+  const STATUS_CHAIN = ["AI reviewed", "Analyst reviewing", "Signed off"];
+
+  function getCurrent() { return submissions.find(x => x.id === currentId) || null; }
+  function review(s) {
+    if (!s._review) s._review = { decision: null, notes: [], draft: null, log: [] };
+    return s._review;
+  }
+  function analystName() {
+    const v = (document.getElementById("analystName").value || "").trim();
+    return v || "Analyst";
+  }
+  function nowStamp() { return new Date().toLocaleString(); }
+  function logAction(s, desc) {
+    review(s).log.unshift({ desc, by: analystName(), time: nowStamp() });
+  }
+  function currentDraft(s) {
+    const r = review(s);
+    return (r.draft != null) ? r.draft : (s.draft_response || "");
+  }
+  function closeAllEditors() {
+    ["assessmentEditor", "notesEditor", "draftEditor", "statusEditor"].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = "none";
+    });
+  }
+
+  /* ---------- Open / render detail ---------- */
   function openDetail(id) {
-    const s = submissions.find(x => x.id === id);
+    currentId = id;
+    const s = getCurrent();
     if (!s) return;
+    renderDetail(s);
+    showView("detail");
+  }
+
+  function renderDetail(s) {
+    const r = review(s);
     const aCls = ASSESSMENT_CLS[s.assessment] || "";
     const sCls = STATUS_CLS[s.status] || "";
 
-    // Header — identifier only (id, assessment pill, status; then insurer · date · category)
+    // Header — identifier only
     document.getElementById("dId").textContent = s.id;
     document.getElementById("dMeta").textContent =
       [s.insurer, s.date_submitted, s.category].filter(Boolean).join(" · ");
@@ -975,7 +1073,7 @@
     // Regulatory analysis
     document.getElementById("dAnalysis").textContent = s.regulatory_analysis || "—";
 
-    // Citations / Governing Authorities — each as "source — version"
+    // Citations / Governing Authorities
     const cites = Array.isArray(s.citations) ? s.citations : [];
     document.getElementById("dCitations").innerHTML = cites.length
       ? cites.map(c =>
@@ -983,20 +1081,196 @@
         ).join("")
       : `<li>—</li>`;
 
-    // Recommendation — assessment pill + recommendation text
+    // AI recommendation (preserved, read-only)
     const recoEl = document.getElementById("dRecoBand");
     recoEl.textContent = s.assessment || "—";
     recoEl.className = "badge " + aCls;
     document.getElementById("dRecommendation").textContent = s.recommendation || "—";
 
-    // Draft response — read-only, line breaks preserved via CSS white-space:pre-wrap
-    document.getElementById("dDraftResponse").textContent = s.draft_response || "—";
+    // Analyst decision (shown once recorded)
+    const dw = document.getElementById("dDecisionWrap");
+    if (r.decision) {
+      dw.style.display = "";
+      const dCls = ASSESSMENT_CLS[r.decision.assessment] || "";
+      const db = document.getElementById("dDecisionBand");
+      db.textContent = r.decision.assessment;
+      db.className = "badge " + dCls;
+      document.getElementById("dDecisionText").textContent = r.decision.rationale || "—";
+    } else {
+      dw.style.display = "none";
+    }
 
-    showView("detail");
+    // Notes
+    document.getElementById("dNotes").textContent = r.notes.length ? r.notes.join("\n\n") : "—";
+
+    // Draft response (working copy)
+    document.getElementById("dDraftResponse").textContent = currentDraft(s) || "—";
+
+    // Action log
+    renderLog(s);
+
+    closeAllEditors();
   }
 
-  function noop() {
-    alert("Placeholder — this action is not wired up yet.");
+  function renderLog(s) {
+    const log = review(s).log;
+    const el = document.getElementById("dLog");
+    if (!log.length) {
+      el.innerHTML = `<div class="log-item"><span class="log-text" style="color:var(--text-secondary);">No actions recorded yet.</span></div>`;
+      return;
+    }
+    el.innerHTML = log.map(e => `
+      <div class="log-item">
+        <span class="log-time">${escapeHtml(e.time)}</span>
+        <span><span class="log-text">${escapeHtml(e.desc)}</span> <span class="log-actor">— ${escapeHtml(e.by)}</span></span>
+      </div>`).join("");
+  }
+
+  /* ---------- Analyst actions ---------- */
+  function openAssessmentEditor(mode) {
+    const s = getCurrent(); if (!s) return;
+    const r = review(s);
+    closeAllEditors();
+    assessmentMode = mode;
+    const curAssess = r.decision ? r.decision.assessment : s.assessment;
+    const curText = r.decision ? r.decision.rationale : (s.recommendation || "");
+    document.getElementById("editAssessment").value = curAssess || "Approve";
+    document.getElementById("editRationale").value = curText || "";
+    document.getElementById("saveAssessmentBtn").textContent =
+      (mode === "override") ? "Save override" : "Save decision";
+    document.getElementById("assessmentEditor").style.display = "";
+    document.getElementById("editAssessment").focus();
+  }
+  function saveAssessment() {
+    const s = getCurrent(); if (!s) return;
+    const r = review(s);
+    const newAssess = document.getElementById("editAssessment").value;
+    const newText = document.getElementById("editRationale").value;
+    const prevAssess = r.decision ? r.decision.assessment : s.assessment;
+    r.decision = { assessment: newAssess, rationale: newText };
+    if (assessmentMode === "override") {
+      logAction(s, `Assessment overridden: ${prevAssess} → ${newAssess}`);
+    } else {
+      logAction(s, `Decision recorded: ${newAssess}`);
+    }
+    renderDetail(s);
+  }
+
+  function openNotesEditor() {
+    const s = getCurrent(); if (!s) return;
+    closeAllEditors();
+    document.getElementById("editNotes").value = "";
+    document.getElementById("notesEditor").style.display = "";
+    document.getElementById("editNotes").focus();
+  }
+  function saveNote() {
+    const s = getCurrent(); if (!s) return;
+    const txt = document.getElementById("editNotes").value.trim();
+    if (!txt) { closeAllEditors(); return; }
+    review(s).notes.push(txt);
+    logAction(s, "Note added");
+    renderDetail(s);
+  }
+
+  function openDraftEditor() {
+    const s = getCurrent(); if (!s) return;
+    closeAllEditors();
+    document.getElementById("editDraft").value = currentDraft(s);
+    document.getElementById("draftEditor").style.display = "";
+    document.getElementById("editDraft").focus();
+  }
+  function saveDraft() {
+    const s = getCurrent(); if (!s) return;
+    review(s).draft = document.getElementById("editDraft").value;
+    logAction(s, "Draft response edited");
+    renderDetail(s);
+  }
+
+  function openStatusEditor() {
+    const s = getCurrent(); if (!s) return;
+    closeAllEditors();
+    const sel = document.getElementById("editStatus");
+    const idx = STATUS_CHAIN.indexOf(s.status);
+    let next = (idx >= 0 && idx < STATUS_CHAIN.length - 1) ? STATUS_CHAIN[idx + 1] : s.status;
+    if (![...sel.options].some(o => o.value === next)) next = "AI reviewed";
+    sel.value = next;
+    document.getElementById("statusEditor").style.display = "";
+  }
+  function saveStatus() {
+    const s = getCurrent(); if (!s) return;
+    const newStatus = document.getElementById("editStatus").value;
+    const old = s.status;
+    if (newStatus !== old) {
+      s.status = newStatus;
+      logAction(s, `Status changed: ${old} → ${newStatus}`);
+    }
+    renderOverview();   // live Overview counts
+    renderTable();      // live queue status column
+    renderDetail(s);
+  }
+
+  /* ---------- Export: Decision Document ---------- */
+  function nl2br(str) { return escapeHtml(str || "").replace(/\n/g, "<br>"); }
+
+  function buildDecisionSections(s) {
+    const r = review(s);
+    const cites = Array.isArray(s.citations) ? s.citations : [];
+    const citesHtml = cites.length
+      ? "<ul>" + cites.map(c => `<li>${escapeHtml(c.source)} — ${escapeHtml(c.version)}</li>`).join("") + "</ul>"
+      : "<p>—</p>";
+    const decisionHtml = r.decision
+      ? `<p><strong>Assessment:</strong> ${escapeHtml(r.decision.assessment)}</p><p>${nl2br(r.decision.rationale)}</p>`
+      : "<p>No analyst decision recorded.</p>";
+    const notesHtml = r.notes.length
+      ? r.notes.map(n => `<p>${nl2br(n)}</p>`).join("")
+      : "<p>—</p>";
+    const logHtml = r.log.length
+      ? "<ul>" + r.log.map(e => `<li>${escapeHtml(e.time)} — ${escapeHtml(e.desc)} — ${escapeHtml(e.by)}</li>`).join("") + "</ul>"
+      : "<p>—</p>";
+    return `
+      <h1>Decision Document — ${escapeHtml(s.id)}</h1>
+      <h2>Submission details</h2>
+      <p><strong>ID:</strong> ${escapeHtml(s.id)}</p>
+      <p><strong>Insurer:</strong> ${escapeHtml(s.insurer)}</p>
+      <p><strong>Date submitted:</strong> ${escapeHtml(s.date_submitted)}</p>
+      <p><strong>Category:</strong> ${escapeHtml(s.category)}</p>
+      <p><strong>Rule text:</strong></p><p>${nl2br(s.rule_text)}</p>
+      <p><strong>Insurer rationale:</strong></p><p>${nl2br(s.rationale)}</p>
+      <h2>Regulatory analysis</h2><p>${nl2br(s.regulatory_analysis)}</p>
+      <h2>Citations / Governing Authorities</h2>${citesHtml}
+      <h2>AI recommendation</h2>
+      <p><strong>Assessment:</strong> ${escapeHtml(s.assessment)}</p><p>${nl2br(s.recommendation)}</p>
+      <h2>Analyst decision</h2>${decisionHtml}
+      <h2>Analyst notes</h2>${notesHtml}
+      <h2>Action log</h2>${logHtml}`;
+  }
+  function buildCoverLetter(s) {
+    return `<h2>Cover letter</h2><p>${nl2br(currentDraft(s))}</p>`;
+  }
+  function buildDecisionDocument(s) {
+    return buildDecisionSections(s) + "<hr>" + buildCoverLetter(s);
+  }
+
+  function exportWord() {
+    const s = getCurrent(); if (!s) return;
+    const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" ` +
+      `xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/1999/xhtml">` +
+      `<head><meta charset="utf-8"><title>Decision Document — ${escapeHtml(s.id)}</title></head>` +
+      `<body>${buildDecisionDocument(s)}</body></html>`;
+    const blob = new Blob(["﻿", html], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Decision Document — ${s.id}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  function exportPdf() {
+    const s = getCurrent(); if (!s) return;
+    document.getElementById("printArea").innerHTML = buildDecisionDocument(s);
+    window.print();
   }
 
   /* ---------- Filters & row actions ---------- */
@@ -1007,6 +1281,23 @@
     const btn = e.target.closest("button[data-open]");
     if (btn) openDetail(btn.getAttribute("data-open"));
   });
+
+  /* ---------- Wire analyst actions, editors and export ---------- */
+  document.getElementById("actRecord").addEventListener("click", () => openAssessmentEditor("record"));
+  document.getElementById("actOverride").addEventListener("click", () => openAssessmentEditor("override"));
+  document.getElementById("actNotes").addEventListener("click", openNotesEditor);
+  document.getElementById("actDraft").addEventListener("click", openDraftEditor);
+  document.getElementById("actAdvance").addEventListener("click", openStatusEditor);
+  document.getElementById("actExportWord").addEventListener("click", exportWord);
+  document.getElementById("actExportPdf").addEventListener("click", exportPdf);
+  document.getElementById("saveAssessmentBtn").addEventListener("click", saveAssessment);
+  document.getElementById("cancelAssessmentBtn").addEventListener("click", closeAllEditors);
+  document.getElementById("saveNotesBtn").addEventListener("click", saveNote);
+  document.getElementById("cancelNotesBtn").addEventListener("click", closeAllEditors);
+  document.getElementById("saveDraftBtn").addEventListener("click", saveDraft);
+  document.getElementById("cancelDraftBtn").addEventListener("click", closeAllEditors);
+  document.getElementById("saveStatusBtn").addEventListener("click", saveStatus);
+  document.getElementById("cancelStatusBtn").addEventListener("click", closeAllEditors);
 
   /* ---------- Init ---------- */
   loadData();
