@@ -598,13 +598,11 @@
     border: none;
   }
 
-  /* Print view for the Decision Document (Export PDF) */
+  /* Print view for the Notice of Decision (Export PDF).
+     Visibility only — the document's own inline serif styles drive layout. */
   @media print {
     body > *:not(#printArea) { display: none !important; }
     #printArea { display: block !important; }
-    #printArea h1 { font-size: 18px; margin: 0 0 12px; }
-    #printArea h2 { font-size: 14px; margin: 18px 0 6px; }
-    #printArea p, #printArea li { font-size: 12px; line-height: 1.5; }
   }
 </style>
 </head>
@@ -858,6 +856,7 @@
             <button class="btn primary" id="actExportWord">Export to Word</button>
             <button class="btn" id="actExportPdf">Export PDF</button>
           </div>
+          <p class="panel-desc" id="exportMsg" style="display:none;margin-top:10px;margin-bottom:0;"></p>
         </div>
 
         <div class="panel side-panel">
@@ -1109,6 +1108,7 @@
     // Action log
     renderLog(s);
 
+    clearExportMessage();
     closeAllEditors();
   }
 
@@ -1209,59 +1209,113 @@
     renderDetail(s);
   }
 
-  /* ---------- Export: Decision Document ---------- */
+  /* ---------- Export: Notice of Decision (external, to the insurer) ----------
+     External document. Contains NO AI references, no AI-vs-analyst split, no
+     analyst notes, no action log, no cover letter. The decision is taken from
+     the analyst's RECORDED decision only; if none is recorded, export is
+     blocked. Formatting is monochrome serif / institutional. */
   function nl2br(str) { return escapeHtml(str || "").replace(/\n/g, "<br>"); }
 
-  function buildDecisionSections(s) {
-    const r = review(s);
+  const DECISION_LINE = {
+    "Approve": "The proposed underwriting decline rule is APPROVED.",
+    "Refuse": "The proposed underwriting decline rule is REFUSED and may not be implemented as submitted.",
+    "Flag for Review": "A determination on the proposed underwriting decline rule is deferred pending further information.",
+    "No Recommendation": "No determination has been made on the proposed underwriting decline rule at this time."
+  };
+
+  function refNumber(s) {
+    const m = String(s.id).match(/(\d+)\s*$/);
+    return "AU-DR-2026-" + (m ? m[1] : String(s.id));
+  }
+  function longDate() {
+    return new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  function showExportMessage(text) {
+    const e = document.getElementById("exportMsg");
+    e.textContent = text;
+    e.style.display = "";
+  }
+  function clearExportMessage() {
+    const e = document.getElementById("exportMsg");
+    if (e) { e.textContent = ""; e.style.display = "none"; }
+  }
+
+  // Builds the Notice of Decision HTML. Caller guarantees a recorded decision.
+  function buildNoticeOfDecision(s) {
+    const dec = review(s).decision;
+    const name = analystName();
+    const date = longDate();
     const cites = Array.isArray(s.citations) ? s.citations : [];
+
+    const thinRule = `<div style="border-top:1px solid #000;margin:12px 0;"></div>`;
+    const heading = t => `<div style="font-weight:bold;margin:26px 0 8px;">${t}</div>`;
+
+    const decisionLine = DECISION_LINE[dec.assessment] || DECISION_LINE["No Recommendation"];
+    const rationaleP = (dec.rationale && dec.rationale.trim())
+      ? `<p style="text-align:justify;margin:0 0 14px;">${nl2br(dec.rationale)}</p>`
+      : "";
     const citesHtml = cites.length
-      ? "<ul>" + cites.map(c => `<li>${escapeHtml(c.source)} — ${escapeHtml(c.version)}</li>`).join("") + "</ul>"
-      : "<p>—</p>";
-    const decisionHtml = r.decision
-      ? `<p><strong>Assessment:</strong> ${escapeHtml(r.decision.assessment)}</p><p>${nl2br(r.decision.rationale)}</p>`
-      : "<p>No analyst decision recorded.</p>";
-    const notesHtml = r.notes.length
-      ? r.notes.map(n => `<p>${nl2br(n)}</p>`).join("")
-      : "<p>—</p>";
-    const logHtml = r.log.length
-      ? "<ul>" + r.log.map(e => `<li>${escapeHtml(e.time)} — ${escapeHtml(e.desc)} — ${escapeHtml(e.by)}</li>`).join("") + "</ul>"
-      : "<p>—</p>";
+      ? cites.map(c => `<div style="margin-bottom:6px;">${escapeHtml(c.source)}, ${escapeHtml(c.version)}</div>`).join("")
+      : `<div style="margin-bottom:6px;">—</div>`;
+
     return `
-      <h1>Decision Document — ${escapeHtml(s.id)}</h1>
-      <h2>Submission details</h2>
-      <p><strong>ID:</strong> ${escapeHtml(s.id)}</p>
-      <p><strong>Insurer:</strong> ${escapeHtml(s.insurer)}</p>
-      <p><strong>Date submitted:</strong> ${escapeHtml(s.date_submitted)}</p>
-      <p><strong>Category:</strong> ${escapeHtml(s.category)}</p>
-      <p><strong>Rule text:</strong></p><p>${nl2br(s.rule_text)}</p>
-      <p><strong>Insurer rationale:</strong></p><p>${nl2br(s.rationale)}</p>
-      <h2>Regulatory analysis</h2><p>${nl2br(s.regulatory_analysis)}</p>
-      <h2>Citations / Governing Authorities</h2>${citesHtml}
-      <h2>AI recommendation</h2>
-      <p><strong>Assessment:</strong> ${escapeHtml(s.assessment)}</p><p>${nl2br(s.recommendation)}</p>
-      <h2>Analyst decision</h2>${decisionHtml}
-      <h2>Analyst notes</h2>${notesHtml}
-      <h2>Action log</h2>${logHtml}`;
-  }
-  function buildCoverLetter(s) {
-    return `<h2>Cover letter</h2><p>${nl2br(currentDraft(s))}</p>`;
-  }
-  function buildDecisionDocument(s) {
-    return buildDecisionSections(s) + "<hr>" + buildCoverLetter(s);
+    <div style="font-family:Georgia,'Times New Roman',Times,serif;color:#000;font-size:15px;line-height:1.6;max-width:680px;margin:0 auto;text-align:left;">
+      <div style="text-align:center;font-weight:bold;font-size:16px;">FINANCIAL SERVICES REGULATORY AUTHORITY OF ONTARIO</div>
+      <div style="text-align:center;font-size:12.5px;margin-top:4px;">Auto Insurance Supervision — Underwriting Rule Review</div>
+      ${thinRule}
+      <div style="text-align:center;font-weight:bold;margin:18px 0 24px;">NOTICE OF DECISION — PROPOSED UNDERWRITING DECLINE RULE</div>
+
+      <div style="margin-bottom:20px;">
+        <div><strong>File No.:</strong> ${escapeHtml(refNumber(s))}</div>
+        <div><strong>Date:</strong> ${escapeHtml(date)}</div>
+        <div><strong>To:</strong> ${escapeHtml(s.insurer)}</div>
+        <div><strong>Re:</strong> Submission ${escapeHtml(s.id)}, received ${escapeHtml(s.date_submitted)}</div>
+      </div>
+
+      <p style="text-align:justify;margin:0 0 14px;">This notice sets out the decision of the Financial Services Regulatory Authority of Ontario (the &ldquo;Authority&rdquo;) with respect to the proposed underwriting decline rule identified above, submitted by ${escapeHtml(s.insurer)} for review under the Take-All-Comers framework.</p>
+
+      ${heading("PROPOSED RULE")}
+      <p style="text-align:justify;font-style:italic;margin:0 0 10px;">${nl2br(s.rule_text)}</p>
+      <div style="margin:0 0 14px;">Category: ${escapeHtml(s.category)}</div>
+
+      ${heading("DECISION")}
+      <p style="text-align:justify;font-weight:bold;margin:0 0 14px;">${escapeHtml(decisionLine)}</p>
+
+      ${heading("REASONS FOR DECISION")}
+      <p style="text-align:justify;margin:0 0 14px;">${nl2br(s.regulatory_analysis)}</p>
+      ${rationaleP}
+
+      ${heading("AUTHORITIES CONSIDERED")}
+      <div style="margin:0 0 14px;">${citesHtml}</div>
+
+      ${heading("NEXT STEPS")}
+      <p style="text-align:justify;margin:0 0 14px;">An insurer that wishes to discuss this decision, or to submit a revised underwriting rule, may contact the Auto Insurance Supervision branch of the Authority. A revised submission should address the matters set out in the reasons above and be grounded in factors permitted under the applicable legislation and guidance.</p>
+
+      <div style="margin-top:32px;">Issued on behalf of the Financial Services Regulatory Authority of Ontario:</div>
+      ${thinRule}
+      <div style="font-weight:bold;">${escapeHtml(name)}</div>
+      <div>Senior Regulatory Analyst, Auto Insurance Supervision</div>
+      <div>${escapeHtml(date)}</div>
+    </div>`;
   }
 
   function exportWord() {
     const s = getCurrent(); if (!s) return;
+    if (!review(s).decision) {
+      showExportMessage("Record a decision before exporting the decision document.");
+      return;
+    }
+    clearExportMessage();
     const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" ` +
       `xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/1999/xhtml">` +
-      `<head><meta charset="utf-8"><title>Decision Document — ${escapeHtml(s.id)}</title></head>` +
-      `<body>${buildDecisionDocument(s)}</body></html>`;
+      `<head><meta charset="utf-8"><title>Notice of Decision — ${escapeHtml(s.id)}</title></head>` +
+      `<body>${buildNoticeOfDecision(s)}</body></html>`;
     const blob = new Blob(["﻿", html], { type: "application/msword" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Decision Document — ${s.id}.doc`;
+    a.download = `Notice of Decision — ${s.id}.doc`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1269,7 +1323,12 @@
   }
   function exportPdf() {
     const s = getCurrent(); if (!s) return;
-    document.getElementById("printArea").innerHTML = buildDecisionDocument(s);
+    if (!review(s).decision) {
+      showExportMessage("Record a decision before exporting the decision document.");
+      return;
+    }
+    clearExportMessage();
+    document.getElementById("printArea").innerHTML = buildNoticeOfDecision(s);
     window.print();
   }
 
