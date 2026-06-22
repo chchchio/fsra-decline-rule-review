@@ -686,9 +686,9 @@
         <select id="fBand">
           <option>All bands</option>
           <option>Approve</option>
-          <option>Flag for review</option>
+          <option>Flag for Review</option>
           <option>Refuse</option>
-          <option>Insufficient basis</option>
+          <option>No Recommendation</option>
         </select>
       </div>
       <div>
@@ -736,6 +736,7 @@
         <span class="status-pill" id="dStatus">Status</span>
       </div>
       <h1 id="dTitle">Rule title</h1>
+      <p class="panel-desc" id="dMeta" style="margin-top:6px;margin-bottom:0;"></p>
     </div>
 
     <div class="detail-grid">
@@ -745,6 +746,8 @@
           <h2>Submission</h2>
           <p class="panel-desc">The decline rule as submitted by the insurer.</p>
           <div class="rule-text" id="dRuleText">Rule text placeholder.</div>
+          <p class="panel-desc" style="margin-top:16px;">Insurer rationale</p>
+          <div class="rule-text" id="dRationale"></div>
         </div>
 
         <div class="panel">
@@ -758,12 +761,7 @@
         <div class="panel">
           <h2>Precedent comparison</h2>
           <p class="panel-desc">Sources the assistant compared this submission against.</p>
-          <ul class="source-list">
-            <li>Insurance Act, R.S.O. 1990, c. I.8 <span class="cite">— [ placeholder citation ]</span></li>
-            <li>Automobile Insurance Rate Stabilization framework <span class="cite">— [ placeholder citation ]</span></li>
-            <li>FSRA guidance on unfair or deceptive acts <span class="cite">— [ placeholder citation ]</span></li>
-            <li>Prior decision: SUB-0142 underwriting decline <span class="cite">— [ placeholder citation ]</span></li>
-          </ul>
+          <ul class="source-list" id="dCitations"></ul>
         </div>
 
         <div class="panel">
@@ -783,9 +781,10 @@
             <span style="font-size:13px;color:var(--text-secondary);">Suggested band</span>
             <span class="badge" id="dRecoBand">Band</span>
           </div>
-          <div class="placeholder-block">
-            [ Placeholder ] Rationale supporting the recommended band will appear here — the reasoning, the precedents relied on, and the factors weighed. This area is always present so that no recommendation is reduced to a single word.
-          </div>
+          <p class="panel-desc" style="margin-top:14px;">Regulatory analysis</p>
+          <div class="rule-text" id="dAnalysis"></div>
+          <p class="panel-desc" style="margin-top:16px;">Recommendation</p>
+          <div class="rule-text" id="dRecommendation"></div>
         </div>
 
         <div class="panel" id="requiredActionsPanel">
@@ -848,52 +847,48 @@
 </main>
 
 <script>
-  /* ---------- Seed data (placeholder only) ---------- */
-  // band: approve | flag | refuse | insufficient
-  // status: new | ai | reviewing | signed | returned
-  const BANDS = {
-    approve:      { label: "Approve",            cls: "approve" },
-    flag:         { label: "Flag for review",    cls: "flag" },
-    refuse:       { label: "Refuse",             cls: "refuse" },
-    insufficient: { label: "Insufficient basis", cls: "insufficient" }
+  /* ---------- Assessment / status -> pill styling ----------
+     Values come straight from the submissions file and are displayed as-is.
+     Assessment colours: Approve=green, Flag for Review=amber,
+     Refuse=red, No Recommendation=blue. */
+  const ASSESSMENT_CLS = {
+    "Approve": "approve",
+    "Flag for Review": "flag",
+    "Refuse": "refuse",
+    "No Recommendation": "insufficient"
   };
-  const STATUSES = {
-    new:       { label: "New",                cls: "s-new" },
-    ai:        { label: "AI reviewed",        cls: "s-ai" },
-    reviewing: { label: "Analyst reviewing",  cls: "s-reviewing" },
-    signed:    { label: "Signed off",         cls: "s-signed" },
-    returned:  { label: "Returned",           cls: "s-returned" }
+  const STATUS_CLS = {
+    "New": "s-new",
+    "AI reviewed": "s-ai",
+    "Analyst reviewing": "s-reviewing",
+    "Signed off": "s-signed",
+    "Returned": "s-returned"
   };
 
-  // In-memory only — loaded at runtime from the knowledge-base JSON. No browser storage.
+  // In-memory only — loaded at runtime from the submissions file. No browser storage.
   let submissions = [];
   let loadError = false;
 
-  const DATA_URL = "./decline_rule_knowledge_base_34_FINAL.json";
+  // The queue/detail read ONLY from the submissions file. The 34-source
+  // knowledge base is reference material for citations, not displayed here.
+  const DATA_URL = "./decline_rule_submissions.json";
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  /* ---------- Field mapping (uses the JSON's own keys) ----------
-     id     -> source `id`        (e.g. "item-01")
-     rule   -> source `title`
-     submission text -> source `source_text`
-     band / workflow status / flag count: not present in the data yet
-       (assigned in a later build step) -> render a neutral "—" placeholder.
-       Note: the JSON `status` field is a source legal status (in_force, etc.),
-       which is NOT a review workflow status, so it does not populate the
-       Status column. */
-  function bandKey(s)   { return s && s.band && BANDS[s.band] ? s.band : null; }
-  function statusKey(s) { return s && s.status && STATUSES[s.status] ? s.status : null; }
+  /* ---------- Field mapping (submissions file keys) ----------
+     id -> ID, rule_text -> Rule, assessment -> Band/Assessment pill,
+     status -> Status pill, citations.length -> Flags count. Assessment,
+     recommendation and citations are pre-computed and shown as-is. */
 
   /* ---------- Load data ---------- */
   function loadData() {
     fetch(DATA_URL)
       .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(data => {
-        const list = data && Array.isArray(data.sources) ? data.sources : [];
+        const list = data && Array.isArray(data.submissions) ? data.submissions : [];
         if (list.length === 0) throw new Error("empty");
         submissions = list;
         loadError = false;
@@ -916,13 +911,10 @@
     const q = document.getElementById("fSearch").value.trim().toLowerCase();
 
     const rows = submissions.filter(s => {
-      const bk = bandKey(s), sk = statusKey(s);
-      const bandLabel = bk ? BANDS[bk].label : null;
-      const statusLabel = sk ? STATUSES[sk].label : null;
-      if (fBand !== "All bands" && bandLabel !== fBand) return false;
-      if (fStatus !== "All statuses" && statusLabel !== fStatus) return false;
+      if (fBand !== "All bands" && s.assessment !== fBand) return false;
+      if (fStatus !== "All statuses" && s.status !== fStatus) return false;
       if (q) {
-        const hay = ((s.id || "") + " " + (s.title || "")).toLowerCase();
+        const hay = ((s.id || "") + " " + (s.rule_text || "")).toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -934,18 +926,18 @@
     }
 
     tbody.innerHTML = rows.map(s => {
-      const bk = bandKey(s), sk = statusKey(s);
-      const bandCell = bk
-        ? `<span class="badge ${BANDS[bk].cls}">${BANDS[bk].label}</span>` : "—";
-      const statusCell = sk
-        ? `<span class="status-pill ${STATUSES[sk].cls}">${STATUSES[sk].label}</span>` : "—";
-      const flagsCell = (typeof s.flags === "number")
-        ? `<span class="pip ${s.flags > 0 ? "has" : ""}">${s.flags}</span>`
-        : `<span class="pip">—</span>`;
+      const aCls = ASSESSMENT_CLS[s.assessment] || "";
+      const sCls = STATUS_CLS[s.status] || "";
+      const bandCell = s.assessment
+        ? `<span class="badge ${aCls}">${escapeHtml(s.assessment)}</span>` : "—";
+      const statusCell = s.status
+        ? `<span class="status-pill ${sCls}">${escapeHtml(s.status)}</span>` : "—";
+      const flags = Array.isArray(s.citations) ? s.citations.length : 0;
+      const flagsCell = `<span class="pip ${flags > 0 ? "has" : ""}">${flags}</span>`;
       return `
         <tr>
           <td class="id">${escapeHtml(s.id)}</td>
-          <td class="rule">${escapeHtml(s.title)}</td>
+          <td class="rule">${escapeHtml(s.rule_text)}</td>
           <td>${bandCell}</td>
           <td>${statusCell}</td>
           <td class="flags-count">${flagsCell}</td>
@@ -973,29 +965,45 @@
   function openDetail(id) {
     const s = submissions.find(x => x.id === id);
     if (!s) return;
-    const bk = bandKey(s), sk = statusKey(s);
+    const aCls = ASSESSMENT_CLS[s.assessment] || "";
+    const sCls = STATUS_CLS[s.status] || "";
 
-    // Real data: ID, title, submission text.
+    // Header
     document.getElementById("dId").textContent = s.id;
-    document.getElementById("dTitle").textContent = s.title;
-    document.getElementById("dRuleText").textContent = s.source_text || "—";
+    document.getElementById("dTitle").textContent = s.rule_text || "—";
+    document.getElementById("dMeta").textContent =
+      [s.insurer, s.date_submitted, s.category].filter(Boolean).join(" · ");
 
-    // Band / status not assigned yet -> neutral placeholder.
     const bandEl = document.getElementById("dBand");
-    if (bk) { bandEl.textContent = BANDS[bk].label; bandEl.className = "badge " + BANDS[bk].cls; }
-    else { bandEl.textContent = "—"; bandEl.className = "badge"; }
-
-    const recoEl = document.getElementById("dRecoBand");
-    if (bk) { recoEl.textContent = BANDS[bk].label; recoEl.className = "badge " + BANDS[bk].cls; }
-    else { recoEl.textContent = "—"; recoEl.className = "badge"; }
+    bandEl.textContent = s.assessment || "—";
+    bandEl.className = "badge " + aCls;
 
     const statusEl = document.getElementById("dStatus");
-    if (sk) { statusEl.textContent = STATUSES[sk].label; statusEl.className = "status-pill " + STATUSES[sk].cls; }
-    else { statusEl.textContent = "—"; statusEl.className = "status-pill"; }
+    statusEl.textContent = s.status || "—";
+    statusEl.className = "status-pill " + sCls;
 
-    // Required-actions panel: hidden when band is Approve
+    // Submission + insurer rationale
+    document.getElementById("dRuleText").textContent = s.rule_text || "—";
+    document.getElementById("dRationale").textContent = s.rationale || "—";
+
+    // Precedent comparison — citations as "source — version"
+    const cites = Array.isArray(s.citations) ? s.citations : [];
+    document.getElementById("dCitations").innerHTML = cites.length
+      ? cites.map(c =>
+          `<li>${escapeHtml(c.source)} <span class="cite">— ${escapeHtml(c.version)}</span></li>`
+        ).join("")
+      : `<li>—</li>`;
+
+    // Recommendation — assessment pill + regulatory analysis + recommendation
+    const recoEl = document.getElementById("dRecoBand");
+    recoEl.textContent = s.assessment || "—";
+    recoEl.className = "badge " + aCls;
+    document.getElementById("dAnalysis").textContent = s.regulatory_analysis || "—";
+    document.getElementById("dRecommendation").textContent = s.recommendation || "—";
+
+    // Required-actions panel: hidden when assessment is Approve
     document.getElementById("requiredActionsPanel").style.display =
-      (bk === "approve") ? "none" : "";
+      (s.assessment === "Approve") ? "none" : "";
 
     showView("detail");
   }
